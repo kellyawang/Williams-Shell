@@ -22,13 +22,13 @@
 #define debugPrint(args) if (debug) { fprintf(stderr, args) }
 
 /*
- *Parse function breaks the input into tokens
+ * Parse function breaks the input into tokens, returns them one by one
  * size refers to the size of the bufffer
  */
 char *parse(char *buffer, int *counter, int size, int *flag){
 
-  int NUMBER_OF_TESTS = 8;
-  char *test[] = {" ","\n",";",":","#","|", ">","<"};
+  int NUMBER_OF_TESTS = 9;
+  char *test[] = {" ","\n",";",":","&", "#","|", ">","<"};
 
   int i;
   int tokenSize = 512;
@@ -64,22 +64,19 @@ char *parse(char *buffer, int *counter, int size, int *flag){
 	temp = 1;//strspn(next,test[i]);
       } else{
 	temp = strcspn(next,test[i]);
-      }
-      
+      } 
       //temp is size of current token being processed
       if(temp < tokenSize){
 	tokenSize = temp;
 	
       }
     }
-  
   //printf("Size of token: %i\n", tokenSize);
 
   if(tokenSize == 0){
     *flag = 1;
     return ";";
   }  
-  
   *counter = tokenSize + *counter; //done processing first token, next iteration starts where we left off
   return strndup(next, tokenSize); 
   
@@ -169,6 +166,29 @@ hash getPath() {
   return h;
 }
 
+//method to execute commands? 
+//find semicolon sep commands, handling redirection
+//void executeCommand(){
+
+//fgets(buffer, bSize, dup(1)) for (>) redirection?
+
+//}
+
+//# ; & | > < 
+//if you reach a special character, add a 0 to the array to indicate end of the token
+/*
+void isSpecial() {
+
+
+}
+
+
+//not a special character; simply copy it into the array
+void isWord() {
+
+}
+
+*/
 
 
 /*
@@ -176,30 +196,34 @@ hash getPath() {
  * We read in and execute commands one by one as we get to them because they may modify 
  * later commands
 */
-int main (int argc, char **argv) {
-  
+int main (int argc, char **argv) {  
   int bSize = 512;    //default buffer size
   char buffer[bSize]; //create a buffer to store strings
   char *token;  
   int counter;
   int flag = 0;
-  int tokenIndex;
+
+  //store tokens for current command
   char *tokenArray[bSize];
+  int tokenIndex;
+  int tokenArraySize = bSize;
+
+  //store ids of each running process
   pid_t *parentIds = (pid_t*)malloc(sizeof(pid_t));
   int pidIndex = 0;
   int pidSize = 1;
-  
+
+  printf("*******Welcome! You are now running the Williams Shell*******\n(c) 2015 Juan Mena and Kelly Wang.\n->");  
+
   // Populate the hash table to store executables and their full path specifications.
   hash h = getPath();
   
-  printf("*******Welcome! You are now running the Williams Shell*******\n(c) 2015 Juan Mena and Kelly Wang.\n->");
-
+  //Begin processing buffer
   //while there is something in the buffer continue prompting the user, read in bSize characters or up to \n or EOF
   while(buffer == fgets(buffer, bSize, stdin)){
     //printf("%s \n", buffer);
     flag = 0; //set "flag" = 0 each time you start reading the buffer 
-    counter = 0; //index along the buffer we're looking at
-    
+    counter = 0; //index along the buffer we're looking at  
     tokenIndex = 0;
     
     while(counter < bSize) {    
@@ -207,19 +231,18 @@ int main (int argc, char **argv) {
       //      printf("counter: %i\n", counter);
 
       //add each token to array
-      
       tokenArray[tokenIndex] = token;
-      /*
-      if(token != 0){
+      tokenArraySize++;
+      /*     if(token != 0){
 	printf("token array at index %d: %s\n", tokenIndex, tokenArray[tokenIndex]);
       }
-      printf("Past token 0 \n");  
-      */    
-      //if the current token is an ;
-      //Then this is the end of the command
+      printf("Past token 0 \n");        */    
+      
+      //; separated comands: if the current token is an ; then this is the end of the command
       //Execute the command, and set tokenIndex to zero
       //Or else just increment tokenIndex
       if(strcmp(token,";") == 0){
+
 	//First try and see if the first token is a built in
 	if(tokenArray[0] != 0){
 	  builtin(tokenArray[0]);
@@ -233,24 +256,20 @@ int main (int argc, char **argv) {
 	  //pid_t pid;
 	  tokenArray[tokenIndex] = 0;
 	  printf("Size of Parent list before resize is: %d\n", (int)sizeof(parentIds));
-	  if(pidSize <= pidIndex){
+	
+	  if(pidIndex >= pidSize){ //if pidIndex ever exceeds capacity, resize array of ids 
 	    pidSize = 2 * pidSize;
 	    printf("NEEDED SIZE: %d\n", sizeof(pid_t)*pidSize);
 	    printf("REsize parentIds!\n");
-	    //*parentIds = (pid_t*)resizeList(parentIds, pidIndex);	    
-	    
 
 	    parentIds = (pid_t*)realloc(parentIds, sizeof(pid_t)*pidSize);
 	    
-
-
-
-
 	    printf("Size of Parent list is: %d\n", (int)sizeof(parentIds));
 	  }
 
 	  printf("Size of needed list is: %d\n", (int)sizeof(pid_t)*pidIndex);
 	  printf("pidIndex is: %d\n", pidIndex);
+	  
 	  pidIndex++;
 	  parentIds[pidIndex-1] = fork();
 	  
@@ -278,21 +297,23 @@ int main (int argc, char **argv) {
 	//Command has not ended yet, therefore
 	//Increment the token index.
 	tokenIndex++;
-	if (tokenIndex >= bSize) {
-	  //	  resizeList(tokenArray, tokenIndex);
+	
+	//if incrementing means we exceeds capacity, realloc
+	if (tokenIndex >= tokenArraySize) {
+	  //tokenArraySize = 2*tokenArraySize;
 	  //bSize = 2*bSize;
+	  //tokenArray = (char**)realloc(tokenArray, sizeof(char*)*tokenArraySize);
 	}
-
       }
 
       //if flag is set, we have finished parsing      
       if(flag == 1){ 
 	break;
       }
-    } 
+    } // while counter < bSize
     
     printf("\n->"); 
-  }  
+  }
   return 0;
 }
 
