@@ -168,21 +168,42 @@ hash getPath() {
 
 //method to execute commands? 
 //find semicolon sep commands, handling redirection
-//void executeCommand(){
+void executeCommand(){
 
 //fgets(buffer, bSize, dup(1)) for (>) redirection?
 
-//}
+}
 
 //# ; & | > < 
 //if you reach a special character, add a 0 to the array to indicate end of the token
-/*
-void isSpecial() {
 
+int isSpecial(char *token) {
+  printf("isSpecial is started here!\n");
+  
+  int i;
+  int NUMBER_OF_TESTS = 8;
+  char *test[] = {"\n",";",":","&", "#","|", ">","<"};
 
+  printf("The token is: %s\n", token);
+
+  for(i = 0; i < NUMBER_OF_TESTS; i++) {
+    printf("strcmp(token, %s) == %d\n", test[i], strcmp(token, test[i]));
+
+    if(strcmp(token, test[i]) == 0) {
+      printf("Found the special character: %s\n", test[i]);
+      return 1;//return the acutal special char that matched? test[i]; //strdup(test[i], tokenSize)
+    
+    } 
+  }
+  
+  printf("Token is not a special character.\n", test[i]);
+  return 0;
+  
+  //  if (strcmp(token,";") == 0 || strcmp(token, "&") == 0 || strcmp(token, "#") == 0 || strcmp(token, "|") == 0 || strcmp(token, "#") == 0 ) {
+    
 }
 
-
+/*
 //not a special character; simply copy it into the array
 void isWord() {
 
@@ -214,7 +235,7 @@ int main (int argc, char **argv) {
   int pidSize = 1;
 
   printf("*******Welcome! You are now running the Williams Shell*******\n(c) 2015 Juan Mena and Kelly Wang.\n->");  
-
+  
   // Populate the hash table to store executables and their full path specifications.
   hash h = getPath();
   
@@ -241,7 +262,13 @@ int main (int argc, char **argv) {
       //; separated comands: if the current token is an ; then this is the end of the command
       //Execute the command, and set tokenIndex to zero
       //Or else just increment tokenIndex
-      if(strcmp(token,";") == 0){
+
+      printf("-----------------------------------\nIs a special token?\n");
+      //printf("0 or 1: %d\n", isSpecial(token));
+  
+      if(isSpecial(token)) {
+	//tokenArray[tokenIndex] = 0;
+	//executeCommand(tokenArray, parentIds);
 
 	//First try and see if the first token is a built in
 	if(tokenArray[0] != 0){
