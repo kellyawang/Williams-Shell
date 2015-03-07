@@ -223,13 +223,16 @@ void executeCommand(char *tokenArray[], int tIndex, pid_t *parentIds, hash pathT
     }	
   }
   
-  //  tokenIndex = 0; //reset the array to accept a new command
+  //  tokenIndex = 0; //reset the array to accept a new command <-- do this in main
 	
   //fgets(buffer, bSize, dup(1)) for (>) redirection?	
 }
 
-//# ; & | > < 
-//Whether or not we found a special character, add a 0 to the array to indicate end of the token
+
+
+/*
+  Whether or not we found a special character, add a 0 to the array to indicate end of the token
+*/
 int isSpecial(char *token) {
   printf("isSpecial is started here!\n");
   
@@ -240,8 +243,7 @@ int isSpecial(char *token) {
   printf("The token is: %s\n", token);
 
   for(i = 0; i < NUMBER_OF_TESTS; i++) {
-    printf("strcmp(token, %s) == %d\n", test[i], strcmp(token, test[i]));
-
+    //printf("strcmp(token, %s) == %d\n", test[i], strcmp(token, test[i]));
     if(strcmp(token, test[i]) == 0) {
       printf("Found the special character: %s\n", test[i]);
       return 1;//return the acutal special char that matched? test[i]; //strdup(test[i], tokenSize)
@@ -251,9 +253,7 @@ int isSpecial(char *token) {
   
   printf("Token is not a special character.\n");
   return 0;
-  
-  //  if (strcmp(token,";") == 0 || strcmp(token, "&") == 0 || strcmp(token, "#") == 0 || strcmp(token, "|") == 0 || strcmp(token, "#") == 0 ) {
-    
+      
 }
 
 
@@ -313,59 +313,7 @@ int main (int argc, char **argv) {
       if(isSpecial(token)) {
 	//tokenArray[tokenIndex] = 0;
 	executeCommand(tokenArray, tokenIndex, parentIds, h);
-/*
-	//First try and see if the first token is a built in
-	if(tokenArray[0] != 0){
-	  builtin(tokenArray[0]);
-	}
 
-	char *fullPath = (char*)ht_get(h, tokenArray[0]);
-
-o	//This is a hard coded LS, here we will call a function modified from kind.c
-	//to give us the file path if the command exists
-	if(fullPath != 0){
-	  //pid_t pid;
-	  tokenArray[tokenIndex] = 0;
-	  
-	  printf("Size of Parent list before resize is: %d\n", (int)sizeof(parentIds));
-	
-	  if(pidIndex >= pidSize){ //if pidIndex ever exceeds capacity, resize array of ids 
-	    pidSize = 2 * pidSize;
-	    printf("NEEDED SIZE: %d\n", sizeof(pid_t)*pidSize);
-	    printf("REsize parentIds!\n");
-
-	    parentIds = (pid_t*)realloc(parentIds, sizeof(pid_t)*pidSize);
-	    
-	    printf("Size of Parent list is: %d\n", (int)sizeof(parentIds));
-	  }
-
-	  printf("Size of needed list is: %d\n", (int)sizeof(pid_t)*pidIndex);
-	  printf("pidIndex is: %d\n", pidIndex);
-	  
-	  pidIndex++;
-	  parentIds[pidIndex-1] = fork();
-	  
-	  if(parentIds[pidIndex-1] == 0){
-	    //this ensures that the path was found
-	    if (fullPath) {
-	      int ret = execv(fullPath, tokenArray);
-	      int err = errno;
-	      if(ret == -1){
-		perror("Execvp");
-	      }
-	      
-	      //printf("Return value: %i   error number: %i\n",ret, err);
-	    }
-	  } else {
-	    pid_t commandId = wait(0);
-	    while(commandId != parentIds[pidIndex-1]){
-	      commandId = wait(0);
-	    }
-	  }	
-	}
-	
-	tokenIndex = 0; //reset the array to accept a new command
-*/
 	tokenIndex = 0;
       } else {
 	//Command has not ended yet, therefore
