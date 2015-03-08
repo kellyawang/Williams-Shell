@@ -8,7 +8,6 @@
 #include <errno.h>
 #include <unistd.h>
 #include <dirent.h>
-#include "hash.h"
 
 #define PTR_ADD(p,i) (((char*)p)+(i))
 
@@ -124,52 +123,10 @@ void builtin(char *command) {
 }
 
 
-/*
- * Return a hash table containing executable names and paths of all executables 
- */
-hash getPath() {
-
-  hash h = ht_alloc(997);
-
-  // get path:
-  char *path = strdup(getenv("PATH"));	/* getenv(3) */
-  char name[1024], basename[256];
-  char *dirname;
-  DIR *dir;
-  // split path members
-  while ((dirname = strsep(&path,":"))) { /* strsep(3) */
-    // open directory file
-    dir = opendir(dirname);		  /* opendir(3) */
-    if (dir) {
-      struct dirent *de;	/* dirent(5) */
-      while ((de = readdir(dir))) { /* readdir(3) */
-	int type = de->d_type;
-	// check regular files....
-	if (type & DT_REG) {
-	  strcpy(name,dirname);	/* strcpy(3) */
-	  strcat(name,"/");	/* strcat(3) */
-	  strcpy(basename,de->d_name);
-	  strcat(name,basename);
-	  // ...that are executable
-	  if (0 == access(name,X_OK)) { /* access(2) */
-	    // add to database if they've not been encountered before
-	    if (!ht_get(h,basename)) {
-	      // enter into table, but:
-	      // make copies of key and value to void poisoning
-	      ht_put(h,strdup(basename),strdup(name)); /* strdup(3) */
-	    }
-	  }
-	}
-      }
-    }
-  }
-  return h;
-}
-
 //method to execute commands? 
 //find semicolon sep commands, handling redirection
 //***change name of tokenArray in main method
-void executeCommand(char *tokenArray[], int tIndex, pid_t *parentIds, hash pathTable){
+void executeCommand(char *tokenArray[], int tIndex, pid_t *parentIds) { 
   int pidIndex = 0;
   int pidSize = 1;
   
@@ -178,12 +135,11 @@ void executeCommand(char *tokenArray[], int tIndex, pid_t *parentIds, hash pathT
     builtin(tokenArray[0]);
   }
   
-  char *fullPath = (char*)ht_get(pathTable, tokenArray[0]);
+  //char *fullPath = (char*)ht_get(pathTable, tokenArray[0]);
   
   //This is a hard coded LS, here we will call a function modified from kind.c
   //to give us the file path if the command exists
-  if(fullPath != 0){
-    //pid_t pid;
+  //if(fullPath != 0){ //not needed anymore
     tokenArray[tIndex] = 0;
     
     printf("Size of Parent list before resize is: %d\n", (int)sizeof(parentIds));
@@ -206,8 +162,8 @@ void executeCommand(char *tokenArray[], int tIndex, pid_t *parentIds, hash pathT
 	  
     if(parentIds[pidIndex-1] == 0){
       //this ensures that the path was found
-      if (fullPath) {
-	int ret = execv(fullPath, tokenArray);
+      if (tokenArray[0]) { //(fullPath) {
+	int ret = execvp(tokenArray[0], tokenArray);
 	//	int err = errno;
 	if(ret == -1){
 	  perror("Execvp");
@@ -221,11 +177,11 @@ void executeCommand(char *tokenArray[], int tIndex, pid_t *parentIds, hash pathT
 	commandId = wait(0);
       }
     }	
-  }
+    //} //if fullPath...
   
   //  tokenIndex = 0; //reset the array to accept a new command <-- do this in main
 	
-  //fgets(buffer, bSize, dup(1)) for (>) redirection?	
+
 }
 
 
@@ -267,9 +223,6 @@ int main (int argc, char **argv) {
 
   printf("*******Welcome! You are now running the Williams Shell*******\n(c) 2015 Juan Mena and Kelly Wang.\n->");  
   
-  // Populate the hash table to store executables and their full path specifications.
-  hash h = getPath();
-  
   //Begin processing buffer
   //while there is something in the buffer continue prompting the user, read in bSize characters or up to \n or EOF
   while(buffer == fgets(buffer, bSize, stdin)){
@@ -298,7 +251,7 @@ int main (int argc, char **argv) {
       //if t == "#", if == ";"...etc do different things...
       if(isSpecial(token)) {
 	//tokenArray[tokenIndex] = 0;
-	executeCommand(tokenArray, tokenIndex, parentIds, h);
+	executeCommand(tokenArray, tokenIndex, parentIds); 
 
 	tokenIndex = 0;
       } else {
