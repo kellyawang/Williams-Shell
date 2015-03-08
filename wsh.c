@@ -234,26 +234,11 @@ void executeCommand(char *tokenArray[], int tIndex, pid_t *parentIds, hash pathT
   Whether or not we found a special character, add a 0 to the array to indicate end of the token
 */
 int isSpecial(char *token) {
-  printf("isSpecial is started here!\n");
-  
-  int i;
-  int NUMBER_OF_TESTS = 8;
-  char *test[] = {"\n",";",":","&", "#","|", ">","<"};
+  printf("isSpecial is started here!\n");  
+  printf("the token is: %c\n", token[0]);
 
-  printf("The token is: %s\n", token);
+  return (token[0] == '\n' || token[0] == ';' || token[0] == ':' || token[0] == '&' || token[0] == '#' || token[0] == '|' || token[0] == '<' || token[0] == '>' );
 
-  for(i = 0; i < NUMBER_OF_TESTS; i++) {
-    //printf("strcmp(token, %s) == %d\n", test[i], strcmp(token, test[i]));
-    if(strcmp(token, test[i]) == 0) {
-      printf("Found the special character: %s\n", test[i]);
-      return 1;//return the acutal special char that matched? test[i]; //strdup(test[i], tokenSize)
-    
-    } 
-  }
-  
-  printf("Token is not a special character.\n");
-  return 0;
-      
 }
 
 
@@ -310,6 +295,7 @@ int main (int argc, char **argv) {
       //Or else just increment tokenIndex
       printf("-----------------------------------\nIs a special token?\n");
 
+      //if t == "#", if == ";"...etc do different things...
       if(isSpecial(token)) {
 	//tokenArray[tokenIndex] = 0;
 	executeCommand(tokenArray, tokenIndex, parentIds, h);
