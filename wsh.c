@@ -100,7 +100,7 @@ void help() {
 /*
  * Identify and execute built in commands. If not built-in, its an executable
  */
-void builtin(char *command) {
+int builtin(char *command) {
   //if "exit" "help" "jobs" or "kill" built in function, executes the command, return 1 for now
   //else command is an executable, return 0
   if (strcmp(command, "help") == 0) {
@@ -111,15 +111,16 @@ void builtin(char *command) {
     printf("kill - terminates jobs given an identifier of the targeted job.\n");
     printf("jobs - displays a list of all outstanding jobs, with an identifier.\n");
     printf("cd - changes the working directory of the shell.\n");  
+    return 1;
     
   } else if (strcmp(command, "jobs") == 0) {
-    //return 0;
+    return 1;
 
   } else if (strcmp(command, "kill") == 0) {
-    //return 0;
+    return 1;
 
   } else if (strcmp(command, "cd") == 0) {
-    //return 0;
+    return 1;
 
   } else if(strcmp(command, "exit") == 0) {
     printf("TRY TO EXIT\n");
@@ -127,7 +128,7 @@ void builtin(char *command) {
     perror("Exit failed");
   }
   
-  //  return 0;
+  return 0;
   
 }
 
@@ -139,13 +140,14 @@ void executeCommand(char *tokenArray[], int tIndex, pid_t *parentIds) {
   int pidIndex = 0;
   int pidSize = 1;
   
-  
-  //  if(tokenArray[0] != 0){
   printf("TRY THE [%s] BUILT IN\n", tokenArray[0]);  
-  builtin(tokenArray[0]);
+  int bTest = builtin(tokenArray[0]);
   printf("If I got here after calling exit, FAILED TO EXIT\n");
-  
-  //}
+
+  if(bTest){    
+    return 0;
+  }
+
       
   //char *fullPath = (char*)ht_get(pathTable, tokenArray[0]);
   
