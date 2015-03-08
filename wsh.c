@@ -84,7 +84,7 @@ char *parse(char *buffer, int *counter, int size, int *flag){
 
 /*
  * Print documentation for all built in commands
- */
+ 
 void help() {
   printf("Type 'help' for documentation for all built in commands supported by the Williams shell.\n\n");
 
@@ -93,8 +93,9 @@ void help() {
   printf("jobs - displays a list of all outstanding jobs, with an identifier.\n");
   printf("cd - changes the working directory of the shell.\n");  
 
+  
 }
-
+*/
 
 /*
  * Identify and execute built in commands. If not built-in, its an executable
@@ -103,8 +104,14 @@ void builtin(char *command) {
   //if "exit" "help" "jobs" or "kill" built in function, executes the command, return 1 for now
   //else command is an executable, return 0
   if (strcmp(command, "help") == 0) {
-    help();
-
+    //  help();
+    printf("Type 'help' for documentation for all built in commands supported by the Williams shell.\n\n");
+    
+    printf("exit - halts the shell interpretation.\n");
+    printf("kill - terminates jobs given an identifier of the targeted job.\n");
+    printf("jobs - displays a list of all outstanding jobs, with an identifier.\n");
+    printf("cd - changes the working directory of the shell.\n");  
+    
   } else if (strcmp(command, "jobs") == 0) {
     //return 0;
 
@@ -115,10 +122,12 @@ void builtin(char *command) {
     //return 0;
 
   } else if(strcmp(command, "exit") == 0) {
+    printf("TRY TO EXIT\n");
     exit(0);
+    perror("Exit failed");
   }
   
-  //return 0;
+  //  return 0;
   
 }
 
@@ -130,17 +139,20 @@ void executeCommand(char *tokenArray[], int tIndex, pid_t *parentIds) {
   int pidIndex = 0;
   int pidSize = 1;
   
-  //First try and see if the first token is a built in
-  if(tokenArray[0] != 0){
-    builtin(tokenArray[0]);
-  }
   
+  //  if(tokenArray[0] != 0){
+  printf("TRY THE [%s] BUILT IN\n", tokenArray[0]);  
+  builtin(tokenArray[0]);
+  printf("If I got here after calling exit, FAILED TO EXIT\n");
+  
+  //}
+      
   //char *fullPath = (char*)ht_get(pathTable, tokenArray[0]);
   
   //This is a hard coded LS, here we will call a function modified from kind.c
   //to give us the file path if the command exists
   //if(fullPath != 0){ //not needed anymore
-    tokenArray[tIndex] = 0;
+   
     
     printf("Size of Parent list before resize is: %d\n", (int)sizeof(parentIds));
     
@@ -164,7 +176,7 @@ void executeCommand(char *tokenArray[], int tIndex, pid_t *parentIds) {
       //this ensures that the path was found
       if (tokenArray[0]) { //(fullPath) {
 	int ret = execvp(tokenArray[0], tokenArray);
-	//	int err = errno;
+	int err = errno;
 	if(ret == -1){
 	  perror("Execvp");
 	}
@@ -190,8 +202,8 @@ void executeCommand(char *tokenArray[], int tIndex, pid_t *parentIds) {
   Whether or not we found a special character, add a 0 to the array to indicate end of the token
 */
 int isSpecial(char *token) {
-  printf("isSpecial is started here!\n");  
-  printf("the token is: %c\n", token[0]);
+  //printf("isSpecial is started here!\n");  
+  //  printf("the one character token is: %c\n", token[0]);
 
   return (token[0] == '\n' || token[0] == ';' || token[0] == ':' || token[0] == '&' || token[0] == '#' || token[0] == '|' || token[0] == '<' || token[0] == '>' );
 
@@ -242,6 +254,12 @@ int main (int argc, char **argv) {
 	printf("token array at index %d: %s\n", tokenIndex, tokenArray[tokenIndex]);
       }
       printf("Past token 0 \n");        */    
+
+      //First try and see if the first token is a built in
+      //if(token != 0){
+      //	  builtin(token);
+
+      //}
       
       //; separated comands: if the current token is an ; then this is the end of the command
       //Execute the command, and set tokenIndex to zero
@@ -250,21 +268,23 @@ int main (int argc, char **argv) {
 
       //if t == "#", if == ";"...etc do different things...
       if(isSpecial(token)) {
-	//tokenArray[tokenIndex] = 0;
-	executeCommand(tokenArray, tokenIndex, parentIds); 
+	tokenArray[tokenIndex] = 0;	
 
+	executeCommand(tokenArray, tokenIndex, parentIds); 
+	perror("Failed to exit");
 	tokenIndex = 0;
+
       } else {
 	//Command has not ended yet, therefore
 	//Increment the token index.
 	tokenIndex++;
 	
 	//if incrementing means we exceeds capacity, realloc
-	if (tokenIndex >= tokenArraySize) {
+	//if (tokenIndex >= tokenArraySize) {
 	  //tokenArraySize = 2*tokenArraySize;
 	  //bSize = 2*bSize;
 	  //tokenArray = (char**)realloc(tokenArray, sizeof(char*)*tokenArraySize);
-	}
+	//}
       }
 
       //if flag is set, we have finished parsing      
