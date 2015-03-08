@@ -141,7 +141,9 @@ void executeCommand(char *tokenArray[], int tIndex, pid_t *parentIds) {
   int pidSize = 1;
   
   printf("TRY THE [%s] BUILT IN\n", tokenArray[0]);  
-  int bTest = builtin(tokenArray[0]);
+  //if (tokenArray[0] != 0) {
+    int bTest = builtin(tokenArray[0]);
+    //}
   printf("If I got here after calling exit, FAILED TO EXIT\n");
 
   if(bTest){    
