@@ -9,16 +9,31 @@
 #include <unistd.h>
 #include <dirent.h>
 
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+
+
 #define PTR_ADD(p,i) (((char*)p)+(i))
 
 //A helpful definition to have whenever we're making a system call
 //the 2 ()'s around call and docstring ensure that call makes an assignment if it is an operator
-// Sample usage:
-//SYSCALL(f = open(...), "opening input"); 
-#define SYSCALL(call, docstring) if ((call) == -1) { perror((docstring)); exit(errno) }
+#define SYSCALL(call, docstring) if ((call) == -1) { perror((docstring)); exit(errno); }
 
 //A helpful definition for debugging
 #define debugPrint(args) if (debug) { fprintf(stderr, args) }
+
+typedef struct job job; //struct job was the old type name, job is new type
+
+struct job {
+  int jobId; //id of each process used in the joblist; this is passed to kill command
+  pid_t processId; //index of the process (as seen in top)
+  char *description; //the command that started this job
+  int fg; //foreground job or not
+  job *next; //the next job in the list
+};
+  
+typedef job *joblist;//joblist is now a list of jobs, points to the start of the list
 
 /*
  * Parse function breaks the input into tokens, returns them one by one
@@ -82,20 +97,7 @@ char *parse(char *buffer, int *counter, int size, int *flag){
 }
 
 
-/*
- * Print documentation for all built in commands
- 
-void help() {
-  printf("Type 'help' for documentation for all built in commands supported by the Williams shell.\n\n");
 
-  printf("exit - halts the shell interpretation.\n");
-  printf("kill - terminates jobs given an identifier of the targeted job.\n");
-  printf("jobs - displays a list of all outstanding jobs, with an identifier.\n");
-  printf("cd - changes the working directory of the shell.\n");  
-
-  
-}
-*/
 
 /*
  * Identify and execute built in commands. If not built-in, its an executable
@@ -126,6 +128,7 @@ int builtin(char *command) {
     printf("TRY TO EXIT\n");
     exit(0);
     perror("Exit failed");
+    return 1;
   }
   
   return 0;
@@ -139,18 +142,18 @@ int builtin(char *command) {
 void executeCommand(char *tokenArray[], int tIndex, pid_t *parentIds) { 
   int pidIndex = 0;
   int pidSize = 1;
-  
+  int bTest;
   printf("TRY THE [%s] BUILT IN\n", tokenArray[0]);  
-  //if (tokenArray[0] != 0) {
-    int bTest = builtin(tokenArray[0]);
-    //}
-  printf("If I got here after calling exit, FAILED TO EXIT\n");
+  if (tokenArray[0] != 0) {
+    bTest = builtin(tokenArray[0]);
+  }
+  //printf("If I got here after calling exit, FAILED TO EXIT\n");
 
   if(bTest){    
     return 0;
   }
 
-      
+
   //char *fullPath = (char*)ht_get(pathTable, tokenArray[0]);
   
   //This is a hard coded LS, here we will call a function modified from kind.c
@@ -174,23 +177,40 @@ void executeCommand(char *tokenArray[], int tIndex, pid_t *parentIds) {
     printf("pidIndex is: %d\n", pidIndex);
 	  
     pidIndex++;
-    parentIds[pidIndex-1] = fork();
-	  
-    if(parentIds[pidIndex-1] == 0){
-      //this ensures that the path was found
-      if (tokenArray[0]) { //(fullPath) {
+    parentIds[pidIndex-1] = fork(); //these are actually child ids
+    //joblist->next->processId = fork(); 
+
+    if(parentIds[pidIndex-1] == 0){ //child
+     
+      //if (!joblist->next->processId) {//child
+
+      //too late at this point to check if 
+      //if (tokenArray[0]) { //(fullPath) {
 	int ret = execvp(tokenArray[0], tokenArray);
-	int err = errno;
+	//	int err = errno;
 	if(ret == -1){
 	  perror("Execvp");
+	  
 	}
-	
+	exit(1); //child exits no matter what happens 
 	//printf("Return value: %i   error number: %i\n",ret, err);
-      }
-    } else {
-      pid_t commandId = wait(0);
-      while(commandId != parentIds[pidIndex-1]){
+	//}
+    } else { //parent
+      pid_t commandId = wait(0); 
+      while(commandId != parentIds[pidIndex-1]) {
 	commandId = wait(0);
+	//remove process ids from parentIDs ANYTIME a child dies 
+	//if a child that's not your own died, cross it off the list of processes 
+	//ls | head starts two fg processes
+	//separate fg and bg lists with counts...
+	//every time you call wait if any process died, either a fg or a bg
+	//*top command shows you all your processes --> use for debugging from within wsh
+	//run top
+	//type u
+	//type 16kw6
+	//shows all my processes
+	//open another panic terminal session - everything done there should show up in top
+	//wait command should
       }
     }	
     //} //if fullPath...
@@ -207,9 +227,9 @@ void executeCommand(char *tokenArray[], int tIndex, pid_t *parentIds) {
 */
 int isSpecial(char *token) {
   //printf("isSpecial is started here!\n");  
-  //  printf("the one character token is: %c\n", token[0]);
+  printf("the one character token is: %c\n", *token);
 
-  return (token[0] == '\n' || token[0] == ';' || token[0] == ':' || token[0] == '&' || token[0] == '#' || token[0] == '|' || token[0] == '<' || token[0] == '>' );
+  return (*token == '\n' || *token == ';' || *token == ':' || *token == '&' || *token == '#' || *token == '|' || *token == '<' || *token == '>' );
 
 }
 
@@ -234,6 +254,8 @@ int main (int argc, char **argv) {
 
   //store ids of each running process
   pid_t *parentIds = (pid_t*)malloc(sizeof(pid_t));
+  //allJobs
+
   //  int pidIndex = 0;
   //int pidSize = 1;
 
@@ -273,11 +295,33 @@ int main (int argc, char **argv) {
       //if t == "#", if == ";"...etc do different things...
       if(isSpecial(token)) {
 	tokenArray[tokenIndex] = 0;	
+	printf("IN MAIN: will > be found? %d\n", *token == '>');
+	//semicolon separated commands
+	if(*token == ';') {
+	  executeCommand(tokenArray, tokenIndex, parentIds); 
+	  perror("Failed to exit");
+	  
 
-	executeCommand(tokenArray, tokenIndex, parentIds); 
-	perror("Failed to exit");
-	tokenIndex = 0;
+	} else if (*token == '>') {
+	  int out = dup(1); //save stdout file descriptor
+	  char *target = parse(buffer, &counter, bSize, &flag); //read in the next word AFTER the >
+	  printf("\t The token after '>' is: %s\n", target);
+	  //add that token to the token array
+          tokenArray[tokenIndex] = target;
+          tokenArraySize++;
+	  
+	  int fd;
+	  //see definition at top of wsh
+	  SYSCALL(fd = open(target, (O_WRONLY | O_CREAT | O_TRUNC), 0666), "Output descripton");
 
+	  dup2(fd, 1); //set target file to receive things written to stdout
+	  executeCommand(tokenArray, tokenIndex, parentIds); //execute thing in tokenArray before the >
+	  dup2(out, 1); //reconnect stdout
+
+	}
+
+	tokenIndex = 0; //reset the tokenIndex to begin executing the next command, if it exists?
+	
       } else {
 	//Command has not ended yet, therefore
 	//Increment the token index.
