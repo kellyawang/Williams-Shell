@@ -29,7 +29,7 @@ struct job {
   int jobId; //id of each process used in the joblist; this is passed to kill command
   pid_t processId; //index of the process (as seen in top)
   char *description; //the command that started this job
-  int fg; //foreground job or not
+  //  int fg; //foreground job or not
   job *next; //the next job in the list
   job *prev;// The previous job on the list
 };
@@ -137,11 +137,46 @@ int builtin(char *command) {
   
 }
 
+void addJob(pid_t pid, char *desc, joblist jobs, int *jid){
+
+  job *alpha = (job*)malloc(sizeof(job));
+
+  alpha->processId = pid;
+  if(jobs->next == jobs){
+    //Job list is empty restart the count
+    *jid = 1;
+  }else{
+    //job list has stuff so continue the count.
+    *jid = *jid + 1;
+  }
+  alpha->jobId = *jid;
+  alpha->description = desc;
+  
+
+
+  (jobs->next)->prev = alpha; 
+  alpha->next = jobs->next;
+  alpha->prev = jobs;
+  jobs->next = alpha;
+
+
+  
+}
+
+void removeJob(job *thing){
+
+
+  (thing->prev)->next = thing->next; 
+  (thing->next)->prev = thing->prev;
+
+  free(thing);
+  
+}
 
 //method to execute commands? 
 //find semicolon sep commands, handling redirection
 //***change name of tokenArray in main method
-void executeCommand(char *tokenArray[], int tIndex, pid_t *parentIds, int *pidSize, int fg) { 
+void executeCommand(char *tokenArray[], int tIndex, pid_t *parentIds, int *pidSize, int fg, joblist jobs, int *jid) { 
   int pidIndex = 0;
   //  int pidSize = 1;
   int bTest;
@@ -180,8 +215,11 @@ void executeCommand(char *tokenArray[], int tIndex, pid_t *parentIds, int *pidSi
 	  
     pidIndex++;
     //increment the size of the parent ids array
+    
     (*pidSize)++;
     parentIds[pidIndex-1] = fork(); //these are actually child ids
+       
+    
     //joblist->next->processId = fork(); 
 
     if(parentIds[pidIndex-1] == 0){ //child
@@ -203,39 +241,43 @@ void executeCommand(char *tokenArray[], int tIndex, pid_t *parentIds, int *pidSi
 	//printf("Return value: %i   error number: %i\n",ret, err);
 	//}
     } else { //parent
-      pid_t commandId = wait(0); 
-
-      /*
-      while(commandId != parentIds[pidIndex-1]) {
-	commandId = wait(0);
-	//remove process ids from parentIDs ANYTIME a child dies 
-	//if a child that's not your own died, cross it off the list of processes 
-	//ls | head starts two fg processes
-	//separate fg and bg lists with counts...
-	//every time you call wait if any process died, either a fg or a bg
-	//*top command shows you all your processes --> use for debugging from within wsh
-	//run top
-	//type u
-	//type 16kw6
-	//shows all my processes
-	//open another panic terminal session - everything done there should show up in top
-	//wait command should
-      }
-      */
-      //printf("pidSize: %d\n", (*pidSize));
-      int z = 0;
-      while((*pidSize) > 1){
-	for(z = 0; z < pidIndex; z++){
-	  if(commandId == parentIds[z]){
-	    // decrease the number of parent ids, and set the parent Id, there to 0?
-	    //printf("Process found \n");
-	    (*pidSize)--;
-	    parentIds[z] = 0;
-	    commandId = wait(0);
+      printf("fg: %d \n", fg);
+      if(fg){
+	pid_t commandId = wait(0); 
+	job *temp = jobs->next;
+	int z = 0;
+	while((*pidSize) > 1){
+	  for(z = 0; z < pidIndex; z++){
+	    if(commandId == parentIds[z]){
+	      // decrease the number of parent ids, and set the parent Id, there to 0?
+	      printf("Process found \n");
+	      (*pidSize)--;
+	      parentIds[z] = 0;
+	      //check if Jobs[z] == commandId
+	      commandId = wait(0);
+	    }
+	    
 	  }
+	  //Check through the bg jobs to see if any terminated.
+	  while(temp != jobs){
+	    if(temp->processId == commandId){
+	      printf("Got that BG off \n");
+	      removeJob(temp);
+	      commandId = wait(0);
+	      (*pidSize)--;
+	      pidIndex--;
+	    }
+	    
+	      temp = temp->next;
+	  }
+	  
+	  
 	}
+    }else{
+	addJob(parentIds[pidIndex-1], tokenArray[0], jobs, jid);
+	
+	
       }
-      
 
 
 
@@ -285,12 +327,18 @@ int main (int argc, char **argv) {
   //allJobs
   //Create job list
   joblist jobs = (job*)malloc(sizeof(job));
-  
+  int jid = 1;
+
   jobs->next = jobs;
   jobs->prev = jobs;
   jobs->jobId = 0;
   jobs->processId = 0;
   jobs->description = "init";
+  
+
+  //for redirection
+  int in = dup(0); //save stdout file descriptor
+  int out = dup(1); //save stdout file descriptor
   
 
 
@@ -307,7 +355,6 @@ int main (int argc, char **argv) {
     flag = 0; //set "flag" = 0 each time you start reading the buffer 
     counter = 0; //index along the buffer we're looking at  
     tokenIndex = 0;
-    
     while(counter < bSize) {    
       token = parse(buffer, &counter, bSize, &flag);
       //      printf("counter: %i\n", counter);
@@ -333,16 +380,19 @@ int main (int argc, char **argv) {
 
       //if t == "#", if == ";"...etc do different things...
       if(isSpecial(token)) {
-	tokenArray[tokenIndex] = 0;	
+
 	//printf("IN MAIN: will > be found? %d\n", *token == '>');
 	//semicolon separated commands
 	if(*token == ';') {
-	  executeCommand(tokenArray, tokenIndex, parentIds, &sizeParentIds, 1); 
+	  tokenArray[tokenIndex] = 0;	
+	  tokenArraySize = 0;
+	  executeCommand(tokenArray, tokenIndex, parentIds, &sizeParentIds, 1, jobs, &jid); 
 	  perror("Failed to exit");
-	  
-
+	  dup2(in, 0); //reconnect stdout
+	  dup2(out, 1); //reconnect stdout
+	  tokenIndex = 0; //reset the tokenIndex to begin executing the next command, if it exists?
 	} else if (*token == '>') {
-	  int out = dup(1); //save stdout file descriptor
+	  //int out = dup(1); //save stdout file descriptor
 	  char *target = parse(buffer, &counter, bSize, &flag); //read in the next word AFTER the >
 	  
 	  if(!isSpecial(target)){
@@ -351,14 +401,14 @@ int main (int argc, char **argv) {
 	    SYSCALL(fd = open(target, (O_WRONLY | O_CREAT | O_TRUNC), 0666), "Output descripton");
 	    
 	    dup2(fd, 1); //set target file to receive things written to stdout
-	    executeCommand(tokenArray, tokenIndex, parentIds, &sizeParentIds, 1); //execute thing in tokenArray before the >
-	    dup2(out, 1); //reconnect stdout
+	    //executeCommand(tokenArray, tokenIndex, parentIds, &sizeParentIds, 1); //execute thing in tokenArray before the >
+	    //dup2(out, 1); //reconnect stdout
 	  }else {
 	    printf("%s not a valid filename \n" , target);
 	  }
 	}else if(*token == '<'){
 	  
-	  int in = dup(0); //save stdout file descriptor
+	  //int in = dup(0); //save stdout file descriptor
 	  char *target = parse(buffer, &counter, bSize, &flag); //read in the next word AFTER the >
 	  printf("This is the target: %s\n", target);
 	  if(!isSpecial(target)){
@@ -367,8 +417,8 @@ int main (int argc, char **argv) {
 	    SYSCALL(fd = open(target, (O_RDONLY), 0666), "Output descripton");
 	    //read(fd, )
 	    dup2(fd, 0); //set target file to receive things written to stdout
-	    executeCommand(tokenArray, tokenIndex, parentIds, &sizeParentIds, 1); //execute thing in tokenArray before the >
-	    dup2(in, 0); //reconnect stdout
+	    //executeCommand(tokenArray, tokenIndex, parentIds, &sizeParentIds, 1); //execute thing in tokenArray before the >
+	    //dup2(in, 0); //reconnect stdout
 	    
 	  
 	  
@@ -376,13 +426,21 @@ int main (int argc, char **argv) {
 	    printf("%s not a valid filename \n" , target);
 	  }
 	}else if(*token == '&'){
-	  
-	  // fg == 0 means in the back ground, fg == 1 means in the foregronud
-	  executeCommand(tokenArray, tokenIndex, parentIds, &sizeParentIds, 0); 
+	  // fg == 0 means in the back ground, fg == 1 means in the foregronud	  
+	  tokenArray[tokenIndex] = 0;	
+	  tokenArraySize = 0;
+	  executeCommand(tokenArray, tokenIndex, parentIds, &sizeParentIds, 0, jobs, &jid); 
+	  perror("Failed to exit");
+	  dup2(in, 0); //reconnect stdout
+	  dup2(out, 1); //reconnect stdout
+	  tokenIndex = 0; //reset the tokenIndex to begin executing the next command, if it exists?
+
+
+
 	  
 	}
-
-	tokenIndex = 0; //reset the tokenIndex to begin executing the next command, if it exists?
+	
+	//tokenIndex = 0; //reset the tokenIndex to begin executing the next command, if it exists?
 	
       } else {
 	//Command has not ended yet, therefore
@@ -402,7 +460,7 @@ int main (int argc, char **argv) {
 	break;
       }
     } // while counter < bSize
-    
+    //waitpid(-1,0,WNOHANG);
     printf("\n->"); 
   }
   return 0;
