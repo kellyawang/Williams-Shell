@@ -31,6 +31,7 @@ struct job {
   char *description; //the command that started this job
   int fg; //foreground job or not
   job *next; //the next job in the list
+  job *prev;// The previous job on the list
 };
   
 typedef job *joblist;//joblist is now a list of jobs, points to the start of the list
@@ -117,6 +118,7 @@ int builtin(char *command) {
     
   } else if (strcmp(command, "jobs") == 0) {
     return 1;
+    //remember to print out jobId, processId, and report when a job is Done, or has been Killed, or has been zombie'd
 
   } else if (strcmp(command, "kill") == 0) {
     return 1;
@@ -139,7 +141,7 @@ int builtin(char *command) {
 //method to execute commands? 
 //find semicolon sep commands, handling redirection
 //***change name of tokenArray in main method
-void executeCommand(char *tokenArray[], int tIndex, pid_t *parentIds, int *pidSize) { 
+void executeCommand(char *tokenArray[], int tIndex, pid_t *parentIds, int *pidSize, int fg) { 
   int pidIndex = 0;
   //  int pidSize = 1;
   int bTest;
@@ -281,6 +283,17 @@ int main (int argc, char **argv) {
   pid_t *parentIds = (pid_t*)malloc(sizeof(pid_t));
   int sizeParentIds = 1;
   //allJobs
+  //Create job list
+  joblist jobs = (job*)malloc(sizeof(job));
+  
+  jobs->next = jobs;
+  jobs->prev = jobs;
+  jobs->jobId = 0;
+  jobs->processId = 0;
+  jobs->description = "init";
+  
+
+
 
   //  int pidIndex = 0;
   //int pidSize = 1;
@@ -324,26 +337,49 @@ int main (int argc, char **argv) {
 	//printf("IN MAIN: will > be found? %d\n", *token == '>');
 	//semicolon separated commands
 	if(*token == ';') {
-	  executeCommand(tokenArray, tokenIndex, parentIds, &sizeParentIds); 
+	  executeCommand(tokenArray, tokenIndex, parentIds, &sizeParentIds, 1); 
 	  perror("Failed to exit");
 	  
 
 	} else if (*token == '>') {
 	  int out = dup(1); //save stdout file descriptor
 	  char *target = parse(buffer, &counter, bSize, &flag); //read in the next word AFTER the >
-	  //printf("\t The token after '>' is: %s\n", target);
-	  //add that token to the token array
-          //tokenArray[tokenIndex] = 0;//target;
-          //tokenArraySize++;
 	  
-	  int fd;
-	  //see definition at top of wsh
-	  SYSCALL(fd = open(target, (O_WRONLY | O_CREAT | O_TRUNC), 0666), "Output descripton");
-
-	  dup2(fd, 1); //set target file to receive things written to stdout
-	  executeCommand(tokenArray, tokenIndex, parentIds, &sizeParentIds); //execute thing in tokenArray before the >
-	  dup2(out, 1); //reconnect stdout
-
+	  if(!isSpecial(target)){
+	    int fd;
+	    //see definition at top of wsh
+	    SYSCALL(fd = open(target, (O_WRONLY | O_CREAT | O_TRUNC), 0666), "Output descripton");
+	    
+	    dup2(fd, 1); //set target file to receive things written to stdout
+	    executeCommand(tokenArray, tokenIndex, parentIds, &sizeParentIds, 1); //execute thing in tokenArray before the >
+	    dup2(out, 1); //reconnect stdout
+	  }else {
+	    printf("%s not a valid filename \n" , target);
+	  }
+	}else if(*token == '<'){
+	  
+	  int in = dup(0); //save stdout file descriptor
+	  char *target = parse(buffer, &counter, bSize, &flag); //read in the next word AFTER the >
+	  printf("This is the target: %s\n", target);
+	  if(!isSpecial(target)){
+	    int fd;
+	    //see definition at top of wsh
+	    SYSCALL(fd = open(target, (O_RDONLY), 0666), "Output descripton");
+	    //read(fd, )
+	    dup2(fd, 0); //set target file to receive things written to stdout
+	    executeCommand(tokenArray, tokenIndex, parentIds, &sizeParentIds, 1); //execute thing in tokenArray before the >
+	    dup2(in, 0); //reconnect stdout
+	    
+	  
+	  
+	  }else {
+	    printf("%s not a valid filename \n" , target);
+	  }
+	}else if(*token == '&'){
+	  
+	  // fg == 0 means in the back ground, fg == 1 means in the foregronud
+	  executeCommand(tokenArray, tokenIndex, parentIds, &sizeParentIds, 0); 
+	  
 	}
 
 	tokenIndex = 0; //reset the tokenIndex to begin executing the next command, if it exists?
