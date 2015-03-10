@@ -139,11 +139,11 @@ int builtin(char *command) {
 //method to execute commands? 
 //find semicolon sep commands, handling redirection
 //***change name of tokenArray in main method
-void executeCommand(char *tokenArray[], int tIndex, pid_t *parentIds) { 
+void executeCommand(char *tokenArray[], int tIndex, pid_t *parentIds, int *pidSize) { 
   int pidIndex = 0;
-  int pidSize = 1;
+  //  int pidSize = 1;
   int bTest;
-  printf("TRY THE [%s] BUILT IN\n", tokenArray[0]);  
+  //printf("TRY THE [%s] BUILT IN\n", tokenArray[0]);  
   if (tokenArray[0] != 0) {
     bTest = builtin(tokenArray[0]);
   }
@@ -161,22 +161,24 @@ void executeCommand(char *tokenArray[], int tIndex, pid_t *parentIds) {
   //if(fullPath != 0){ //not needed anymore
    
     
-    printf("Size of Parent list before resize is: %d\n", (int)sizeof(parentIds));
+  //printf("Size of Parent list before resize is: %d\n", (int)sizeof(parentIds));
     
-    if(pidIndex >= pidSize){ //if pidIndex ever exceeds capacity, resize array of ids 
-      pidSize = 2 * pidSize;
-      printf("NEEDED SIZE: %d\n", sizeof(pid_t)*pidSize);
-      printf("REsize parentIds!\n");
+  if(pidIndex >= (*pidSize)){ //if pidIndex ever exceeds capacity, resize array of ids 
+    (*pidSize) = 2 * (*pidSize);
+      //printf("NEEDED SIZE: %d\n", sizeof(pid_t)*pidSize);
+      //printf("REsize parentIds!\n");
       
-      parentIds = (pid_t*)realloc(parentIds, sizeof(pid_t)*pidSize);
+      parentIds = (pid_t*)realloc(parentIds, sizeof(pid_t)*(*pidSize));
       
-      printf("Size of Parent list is: %d\n", (int)sizeof(parentIds));
+      //printf("Size of Parent list is: %d\n", (int)sizeof(parentIds));
     }
     
-    printf("Size of needed list is: %d\n", (int)sizeof(pid_t)*pidIndex);
-    printf("pidIndex is: %d\n", pidIndex);
+    //printf("Size of needed list is: %d\n", (int)sizeof(pid_t)*pidIndex);
+    //printf("pidIndex is: %d\n", pidIndex);
 	  
     pidIndex++;
+    //increment the size of the parent ids array
+    (*pidSize)++;
     parentIds[pidIndex-1] = fork(); //these are actually child ids
     //joblist->next->processId = fork(); 
 
@@ -186,17 +188,22 @@ void executeCommand(char *tokenArray[], int tIndex, pid_t *parentIds) {
 
       //too late at this point to check if 
       //if (tokenArray[0]) { //(fullPath) {
-	int ret = execvp(tokenArray[0], tokenArray);
+      int ret;
 	//	int err = errno;
-	if(ret == -1){
-	  perror("Execvp");
-	  
-	}
-	exit(1); //child exits no matter what happens 
+	SYSCALL(ret = execvp(tokenArray[0], tokenArray) ,"Execvp");
+	
+	//if(ret == -1){
+	//perror("Execvp");
+  
+	//}
+	
+	//exit(1); //child exits no matter what happens 
 	//printf("Return value: %i   error number: %i\n",ret, err);
 	//}
     } else { //parent
       pid_t commandId = wait(0); 
+
+      /*
       while(commandId != parentIds[pidIndex-1]) {
 	commandId = wait(0);
 	//remove process ids from parentIDs ANYTIME a child dies 
@@ -212,6 +219,24 @@ void executeCommand(char *tokenArray[], int tIndex, pid_t *parentIds) {
 	//open another panic terminal session - everything done there should show up in top
 	//wait command should
       }
+      */
+      //printf("pidSize: %d\n", (*pidSize));
+      int z = 0;
+      while((*pidSize) > 1){
+	for(z = 0; z < pidIndex; z++){
+	  if(commandId == parentIds[z]){
+	    // decrease the number of parent ids, and set the parent Id, there to 0?
+	    //printf("Process found \n");
+	    (*pidSize)--;
+	    parentIds[z] = 0;
+	    commandId = wait(0);
+	  }
+	}
+      }
+      
+
+
+
     }	
     //} //if fullPath...
   
@@ -227,7 +252,7 @@ void executeCommand(char *tokenArray[], int tIndex, pid_t *parentIds) {
 */
 int isSpecial(char *token) {
   //printf("isSpecial is started here!\n");  
-  printf("the one character token is: %c\n", *token);
+  //printf("the one character token is: %c\n", *token);
 
   return (*token == '\n' || *token == ';' || *token == ':' || *token == '&' || *token == '#' || *token == '|' || *token == '<' || *token == '>' );
 
@@ -254,6 +279,7 @@ int main (int argc, char **argv) {
 
   //store ids of each running process
   pid_t *parentIds = (pid_t*)malloc(sizeof(pid_t));
+  int sizeParentIds = 1;
   //allJobs
 
   //  int pidIndex = 0;
@@ -295,27 +321,27 @@ int main (int argc, char **argv) {
       //if t == "#", if == ";"...etc do different things...
       if(isSpecial(token)) {
 	tokenArray[tokenIndex] = 0;	
-	printf("IN MAIN: will > be found? %d\n", *token == '>');
+	//printf("IN MAIN: will > be found? %d\n", *token == '>');
 	//semicolon separated commands
 	if(*token == ';') {
-	  executeCommand(tokenArray, tokenIndex, parentIds); 
+	  executeCommand(tokenArray, tokenIndex, parentIds, &sizeParentIds); 
 	  perror("Failed to exit");
 	  
 
 	} else if (*token == '>') {
 	  int out = dup(1); //save stdout file descriptor
 	  char *target = parse(buffer, &counter, bSize, &flag); //read in the next word AFTER the >
-	  printf("\t The token after '>' is: %s\n", target);
+	  //printf("\t The token after '>' is: %s\n", target);
 	  //add that token to the token array
-          tokenArray[tokenIndex] = target;
-          tokenArraySize++;
+          //tokenArray[tokenIndex] = 0;//target;
+          //tokenArraySize++;
 	  
 	  int fd;
 	  //see definition at top of wsh
 	  SYSCALL(fd = open(target, (O_WRONLY | O_CREAT | O_TRUNC), 0666), "Output descripton");
 
 	  dup2(fd, 1); //set target file to receive things written to stdout
-	  executeCommand(tokenArray, tokenIndex, parentIds); //execute thing in tokenArray before the >
+	  executeCommand(tokenArray, tokenIndex, parentIds, &sizeParentIds); //execute thing in tokenArray before the >
 	  dup2(out, 1); //reconnect stdout
 
 	}
