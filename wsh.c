@@ -100,7 +100,7 @@ char *parse(char *buffer, int *counter, int size, int *flag){
 /*
  * Identify and execute built in commands. If not built-in, its an executable
  */
-int builtin(char *command, job *jobs) {
+int builtin(char *command, char *target, job *jobs) {
   //if "exit" "help" "jobs" or "kill" built in function, executes the command, return 1 for now
   //else command is an executable, return 0
   if (strcmp(command, "help") == 0) {
@@ -122,6 +122,19 @@ int builtin(char *command, job *jobs) {
     //remember to print out jobId, processId, and report when a job is Done, or has been Killed, or has been zombie'd
 
   } else if (strcmp(command, "kill") == 0) {
+    job *temp = jobs->next;
+    
+    int goal = atoi(target);
+    while(jobs != temp){
+      if(temp->processId == goal){
+	printf("kill it\n");
+	kill(temp->processId, 9);
+	break;
+      }
+      temp = temp->next;
+    }
+    
+    
     return 1;
 
   } else if (strcmp(command, "cd") == 0) {
@@ -177,7 +190,7 @@ void executeCommand(char *tokenArray[], int tIndex, pid_t *parentIds, int *pidSi
   int bTest;
 
   if (tokenArray[0] != 0) {
-    bTest = builtin(tokenArray[0], jobs);
+    bTest = builtin(tokenArray[0], tokenArray[1], jobs);
   }
 
   if(bTest){    
@@ -407,7 +420,6 @@ int main (int argc, char **argv) {
 
       //if flag is set, we have finished parsing      
       if(flag == 1){ 
-	
 	break;
       }
     } // while counter < bSize
