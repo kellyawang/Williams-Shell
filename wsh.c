@@ -103,7 +103,7 @@ char *parse(char *buffer, int *counter, int size, int *flag){
 /*
  * Identify and execute built in commands. If not built-in, its an executable
  */
-int builtin(char *command) {
+int builtin(char *command, job *jobs) {
   //if "exit" "help" "jobs" or "kill" built in function, executes the command, return 1 for now
   //else command is an executable, return 0
   if (strcmp(command, "help") == 0) {
@@ -117,6 +117,12 @@ int builtin(char *command) {
     return 1;
     
   } else if (strcmp(command, "jobs") == 0) {
+    job *temp = jobs->next;
+    while(jobs != temp){
+      printf("[%d]  %d  %s user\n", temp->jobId, temp->processId, temp->description);
+      temp = temp->next;
+    }
+    
     return 1;
     //remember to print out jobId, processId, and report when a job is Done, or has been Killed, or has been zombie'd
 
@@ -137,11 +143,11 @@ int builtin(char *command) {
   
 }
 
-void addJob(pid_t pid, char *desc, joblist jobs, int *jid){
+void addJob(job *alpha, char *desc, joblist jobs, int *jid){
 
-  job *alpha = (job*)malloc(sizeof(job));
+  //job *alpha = (job*)malloc(sizeof(job));
 
-  alpha->processId = pid;
+  //alpha->processId = pid;
   if(jobs->next == jobs){
     //Job list is empty restart the count
     *jid = 1;
@@ -182,113 +188,94 @@ void executeCommand(char *tokenArray[], int tIndex, pid_t *parentIds, int *pidSi
   int bTest;
   //printf("TRY THE [%s] BUILT IN\n", tokenArray[0]);  
   if (tokenArray[0] != 0) {
-    bTest = builtin(tokenArray[0]);
+    bTest = builtin(tokenArray[0], jobs);
   }
   //printf("If I got here after calling exit, FAILED TO EXIT\n");
-
   if(bTest){    
     return 0;
   }
-
-
   //char *fullPath = (char*)ht_get(pathTable, tokenArray[0]);
   
   //This is a hard coded LS, here we will call a function modified from kind.c
   //to give us the file path if the command exists
   //if(fullPath != 0){ //not needed anymore
    
-    
-  //printf("Size of Parent list before resize is: %d\n", (int)sizeof(parentIds));
-    
   if(pidIndex >= (*pidSize)){ //if pidIndex ever exceeds capacity, resize array of ids 
     (*pidSize) = 2 * (*pidSize);
-      //printf("NEEDED SIZE: %d\n", sizeof(pid_t)*pidSize);
-      //printf("REsize parentIds!\n");
-      
-      parentIds = (pid_t*)realloc(parentIds, sizeof(pid_t)*(*pidSize));
-      
-      //printf("Size of Parent list is: %d\n", (int)sizeof(parentIds));
-    }
-    
-    //printf("Size of needed list is: %d\n", (int)sizeof(pid_t)*pidIndex);
-    //printf("pidIndex is: %d\n", pidIndex);
-	  
-    pidIndex++;
-    //increment the size of the parent ids array
-    
-    (*pidSize)++;
-    parentIds[pidIndex-1] = fork(); //these are actually child ids
-       
-    
-    //joblist->next->processId = fork(); 
+    parentIds = (pid_t*)realloc(parentIds, sizeof(pid_t)*(*pidSize));
+  }    
 
-    if(parentIds[pidIndex-1] == 0){ //child
-     
-      //if (!joblist->next->processId) {//child
 
-      //too late at this point to check if 
-      //if (tokenArray[0]) { //(fullPath) {
-      int ret;
-	//	int err = errno;
-	SYSCALL(ret = execvp(tokenArray[0], tokenArray) ,"Execvp");
+    if(fg){
+      //increment the size of the parent ids array
+      printf("Size of PIDS: %d\n",(*pidSize) );
+      pidIndex++;
+      (*pidSize)++;
+      parentIds[pidIndex-1] = fork(); //these are actually child ids
+      printf("post fork\n");
+
+      if( parentIds[pidIndex-1] == 0){ //child
 	
-	//if(ret == -1){
-	//perror("Execvp");
-  
-	//}
+	int ret;
+	SYSCALL(ret = execvp(tokenArray[0], tokenArray) ,"Execvp");	
+      }else { //parent
+	printf("fg: %d \n", fg);
 	
-	//exit(1); //child exits no matter what happens 
-	//printf("Return value: %i   error number: %i\n",ret, err);
-	//}
-    } else { //parent
-      printf("fg: %d \n", fg);
-      if(fg){
-	pid_t commandId = wait(0); 
+	pid_t commandId;
 	job *temp = jobs->next;
 	int z = 0;
+	printf("size %d\n",(*pidSize));
+
+
 	while((*pidSize) > 1){
+	  commandId = wait(0); 
 	  for(z = 0; z < pidIndex; z++){
 	    if(commandId == parentIds[z]){
 	      // decrease the number of parent ids, and set the parent Id, there to 0?
 	      printf("Process found \n");
 	      (*pidSize)--;
+	      printf("size after found %d\n",(*pidSize));
 	      parentIds[z] = 0;
 	      //check if Jobs[z] == commandId
-	      commandId = wait(0);
+	      //commandId = waitpid(-1,0,WNOHANG);
+	      //commandId = wait(0);
 	    }
 	    
-	  }
+	  }printf("We missed our turn, pidsize isnt decreasing \n");
 	  //Check through the bg jobs to see if any terminated.
 	  while(temp != jobs){
 	    if(temp->processId == commandId){
 	      printf("Got that BG off \n");
 	      removeJob(temp);
-	      commandId = wait(0);
-	      (*pidSize)--;
-	      pidIndex--;
-	    }
-	    
-	      temp = temp->next;
+	      //commandId = waitpid(-1,0,WNOHANG);
+	      
+	    }  
+	    printf("looping? \n");
+	    temp = temp->next;
 	  }
-	  
-	  
+	  	  
 	}
-    }else{
-	addJob(parentIds[pidIndex-1], tokenArray[0], jobs, jid);
-	
-	
       }
-
-
-
-    }	
-    //} //if fullPath...
-  
-  //  tokenIndex = 0; //reset the array to accept a new command <-- do this in main
+      
+    }else{
+      job *bgJob = (job*)malloc(sizeof(job));
+      bgJob->processId = fork();
+            
+      if( bgJob->processId == 0){ //child
+     
+	int ret;
+	//	int err = errno;
+	SYSCALL(ret = execvp(tokenArray[0], tokenArray) ,"Execvp");
 	
+	dup2(13,0);
+      }else{
 
+	addJob(bgJob, tokenArray[0], jobs, jid);
+		
+      }
+      
+    }
 }
-
 
 
 /*
@@ -460,7 +447,21 @@ int main (int argc, char **argv) {
 	break;
       }
     } // while counter < bSize
-    //waitpid(-1,0,WNOHANG);
+    
+    //Check for background jobs
+    pid_t bgTemp = waitpid(-1,0,WNOHANG);
+    job *jobTemp = jobs->next;
+    while(bgTemp != 0 && jobs != jobTemp){
+      if(bgTemp == jobTemp->processId){
+	removeJob(jobTemp);
+	//sizeParentIds--;
+	//pidIndex--;
+	printf("joblist is: %d\nand current job is: %d\n",jobs, jobTemp);
+      }
+      
+      jobTemp = jobTemp->next;
+    }
+    
     printf("\n->"); 
   }
   return 0;
