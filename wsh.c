@@ -129,6 +129,7 @@ int builtin(char *command, char *target, job *jobs) {
       if(temp->processId == goal){
 	printf("kill it\n");
 	kill(temp->processId, 9);
+	remove(temp);	
 	break;
       }
       temp = temp->next;
@@ -150,6 +151,12 @@ int builtin(char *command, char *target, job *jobs) {
   return 0;
   
 }
+/*
+void signal_handler(somethin somethin){
+  
+  
+}
+*/
 
 void addJob(job *alpha, char *desc, joblist jobs, int *jid){
   if(jobs->next == jobs){
