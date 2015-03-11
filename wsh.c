@@ -208,23 +208,23 @@ void executeCommand(char *tokenArray[], int tIndex, pid_t *parentIds, int *pidSi
 
     if(fg){
       //increment the size of the parent ids array
-      printf("Size of PIDS: %d\n",(*pidSize) );
+      //      printf("Size of PIDS: %d\n",(*pidSize) );
       pidIndex++;
       (*pidSize)++;
       parentIds[pidIndex-1] = fork(); //these are actually child ids
-      printf("post fork\n");
+      //printf("post fork\n");
 
       if( parentIds[pidIndex-1] == 0){ //child
 	
 	int ret;
 	SYSCALL(ret = execvp(tokenArray[0], tokenArray) ,"Execvp");	
       }else { //parent
-	printf("fg: %d \n", fg);
+	//printf("fg: %d \n", fg);
 	
 	pid_t commandId;
 	job *temp = jobs->next;
 	int z = 0;
-	printf("size %d\n",(*pidSize));
+	//printf("size %d\n",(*pidSize));
 
 
 	while((*pidSize) > 1){
@@ -232,7 +232,7 @@ void executeCommand(char *tokenArray[], int tIndex, pid_t *parentIds, int *pidSi
 	  for(z = 0; z < pidIndex; z++){
 	    if(commandId == parentIds[z]){
 	      // decrease the number of parent ids, and set the parent Id, there to 0?
-	      printf("Process found \n");
+	      //printf("Process found \n");
 	      (*pidSize)--;
 	      printf("size after found %d\n",(*pidSize));
 	      parentIds[z] = 0;
@@ -327,12 +327,6 @@ int main (int argc, char **argv) {
   int in = dup(0); //save stdout file descriptor
   int out = dup(1); //save stdout file descriptor
   
-
-
-
-  //  int pidIndex = 0;
-  //int pidSize = 1;
-
   printf("*******Welcome! You are now running the Williams Shell*******\n(c) 2015 Juan Mena and Kelly Wang.\n->");  
   
   //Begin processing buffer
@@ -349,86 +343,95 @@ int main (int argc, char **argv) {
       //add each token to array
       tokenArray[tokenIndex] = token;
       tokenArraySize++;
-      /*     if(token != 0){
-	printf("token array at index %d: %s\n", tokenIndex, tokenArray[tokenIndex]);
-      }
-      printf("Past token 0 \n");        */    
-
-      //First try and see if the first token is a built in
-      //if(token != 0){
-      //	  builtin(token);
-
-      //}
       
       //; separated comands: if the current token is an ; then this is the end of the command
       //Execute the command, and set tokenIndex to zero
       //Or else just increment tokenIndex
-      printf("-----------------------------------\nIs a special token?\n");
+      //printf("-----------------------------------\nIs a special token?\n");
 
       //if t == "#", if == ";"...etc do different things...
       if(isSpecial(token)) {
 
-	//printf("IN MAIN: will > be found? %d\n", *token == '>');
+      printf("IN MAIN: will > be found? %s\n", token);
 	//semicolon separated commands
 	if(*token == ';') {
 	  tokenArray[tokenIndex] = 0;	
-	  tokenArraySize = 0;
+	  
 	  executeCommand(tokenArray, tokenIndex, parentIds, &sizeParentIds, 1, jobs, &jid); 
-	  perror("Failed to exit");
+	  tokenArraySize = 0;
 	  dup2(in, 0); //reconnect stdout
-	  dup2(out, 1); //reconnect stdout
+	  dup2(out, 1);//reconnect stdout
+	  printf("All green chief \n");
 	  tokenIndex = 0; //reset the tokenIndex to begin executing the next command, if it exists?
 	} else if (*token == '>') {
-	  //int out = dup(1); //save stdout file descriptor
 	  char *target = parse(buffer, &counter, bSize, &flag); //read in the next word AFTER the >
 	  
 	  if(!isSpecial(target)){
 	    int fd;
-	    //see definition at top of wsh
+
 	    SYSCALL(fd = open(target, (O_WRONLY | O_CREAT | O_TRUNC), 0666), "Output descripton");
 	    
 	    dup2(fd, 1); //set target file to receive things written to stdout
-	    //executeCommand(tokenArray, tokenIndex, parentIds, &sizeParentIds, 1); //execute thing in tokenArray before the >
-	    //dup2(out, 1); //reconnect stdout
+
 	  }else {
 	    printf("%s not a valid filename \n" , target);
 	  }
+
 	}else if(*token == '<'){
 	  
-	  //int in = dup(0); //save stdout file descriptor
 	  char *target = parse(buffer, &counter, bSize, &flag); //read in the next word AFTER the >
 	  printf("This is the target: %s\n", target);
 	  if(!isSpecial(target)){
 	    int fd;
-	    //see definition at top of wsh
+
 	    SYSCALL(fd = open(target, (O_RDONLY), 0666), "Output descripton");
-	    //read(fd, )
+	 
 	    dup2(fd, 0); //set target file to receive things written to stdout
-	    //executeCommand(tokenArray, tokenIndex, parentIds, &sizeParentIds, 1); //execute thing in tokenArray before the >
-	    //dup2(in, 0); //reconnect stdout
-	    
-	  
-	  
+	 	  
 	  }else {
 	    printf("%s not a valid filename \n" , target);
 	  }
 	}else if(*token == '&'){
 	  // fg == 0 means in the back ground, fg == 1 means in the foregronud	  
 	  tokenArray[tokenIndex] = 0;	
-	  tokenArraySize = 0;
+	  
 	  executeCommand(tokenArray, tokenIndex, parentIds, &sizeParentIds, 0, jobs, &jid); 
 	  perror("Failed to exit");
 	  dup2(in, 0); //reconnect stdout
 	  dup2(out, 1); //reconnect stdout
-	  tokenIndex = 0; //reset the tokenIndex to begin executing the next command, if it exists?
-
-
-
+	  tokenArraySize = 0;
+	  tokenIndex = 0; //reset the tokenIndex to begin executing the next command
 	  
-	}
+	} else if (*token == '|') {
+	  
+	  int pipefd[2];
+	  
+	  pipe(pipefd);
+	  
+	  tokenArray[tokenIndex] = 0;	
+	  
+	  //	  cmd1 > pipefd[1];
+	  dup2(pipefd[1], 1); //set files to write stdoutput to pipe
+	  perror("dup2:\n");
+	  
+	  executeCommand(tokenArray, tokenIndex, parentIds, &sizeParentIds, 1, jobs, &jid);	  
+	  perror("exec\n");	  
+	  
+	  close(pipefd[1]);
+	  //perror("close\n");
+	  
+	  //	  cmd2 < pipefd[0];
+	  dup2(pipefd[0], 0); //set read end of pipe to receive things written to stdout	  
+	  close(pipefd[0]);
+	  //now execute cmd2 like normal
+	  dup2(out, 1);//reconnect stdout
+	  tokenArraySize = 0; //not needed?
+	  tokenIndex = 0;      
+	  //remember to close pipes
+
+	} 
 	
-	//tokenIndex = 0; //reset the tokenIndex to begin executing the next command, if it exists?
-	
+	//if not a special character, Command has not ended yet, therefore increment the token index.
       } else {
 	//Command has not ended yet, therefore
 	//Increment the token index.
@@ -467,8 +470,3 @@ int main (int argc, char **argv) {
   return 0;
 }
 
-
-
-/* Questions for Duane */
-// Clarify 0 stdin, 1 stdout, 2 stderr
-// :)
