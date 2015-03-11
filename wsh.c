@@ -8,7 +8,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <dirent.h>
-
+#include <signal.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -202,12 +202,13 @@ int builtin(char *command, char *target, job *jobs) {
   return 0;
   
 }
-/*
-void signal_handler(somethin somethin){
-  
+
+void signal_handler(){
+  printf("\n->");
+  fflush(stdout);
   
 }
-*/
+
 
 void addJob(job *alpha, char *desc, joblist jobs, int *jid){
   if(jobs->next == jobs){
@@ -370,6 +371,9 @@ int main (int argc, char **argv) {
   //for redirection
   int in = dup(0); //save stdin file descriptor
   int out = dup(1); //save stdout file descriptor
+
+  signal(SIGINT, signal_handler);
+
   
   printf("*******Welcome! You are now running the Williams Shell*******\n(c) 2015 Juan Mena and Kelly Wang.\n->");  
   
