@@ -145,32 +145,37 @@ int builtin(char *command, char *target, job *jobs) {
     int bSize = 512;
     char current[bSize];
     getcwd(current, bSize);
-
-    printf("the Current Working Directory is: %s\n", current);
-    printf("the Current Command is: %s\n", command);
-    printf("the Current Target is: %s\n", target);
     
     int success;
     success = -1;
-    printf("*********strcmp value: %d\n", strcmp(target, "~") == 0);
-    if (strcmp(target, "~") == 0) { //if target is just ~
+    //printf("*********strcmp value: %d\n", strcmp(target, "~") == 0);
+    if (target == 0) { //if target is just empty
       char *home;
       home = getenv("HOME");
-      printf("Home directory is: %s\n", home);
-      success = chdir(home);
-      perror("--Changing Directory to ~ --");
 
-    } else if (target == '~') { //if target starts with ~ followed by something else eg: ~/Williams-Shell
+      success = chdir(home);
+      //perror("--Changing Directory to ~ --");
+
+    }else if (strcmp(target, "~") == 0) { //if target is just ~
       char *home;
       home = getenv("HOME");
-      printf("HOME??%s\n", home);
-      home = PTR_ADD(home,2);
+      
       success = chdir(home);
-      perror("--Change directory to home--");
+      //perror("--Changing Directory to ~ --");
+
+    }else if (target[0] == '~' && target[1]== '/') { //if target starts with ~ followed by something else eg: ~/Williams-Shell
+      
+      
+      char *home;
+      home = getenv("HOME");
+      
+      target = PTR_ADD(target,2);
+      success = chdir(home);
+      //perror("--Change directory to home--");
       //target = ~/Williams-Shell/directory
       //
       success = chdir(target);
-      perror("--Change directory to target--");
+      //perror("--Change directory to target--");
 
     } else {
       success = chdir(target);
@@ -241,16 +246,17 @@ void executeCommand(char *tokenArray[], int tIndex, pid_t *parentIds, int *pidSi
   int pidIndex = 0;
 
   int bTest;
-  printf("in execute Command, command: %s and target: %s are passed to builtin()\n", tokenArray[0], tokenArray[1]);
+  //printf("in execute Command, command: %s and target: %s are passed to builtin()\n", tokenArray[0], tokenArray[1]);
   if (tokenArray[0] != 0) {
+    //printf("tokenArray[1] = %d\n", tokenArray[1]);
     bTest = builtin(tokenArray[0], tokenArray[1], jobs);
   }
   
   if(bTest){    
-    printf("bTest = %d; found a built in\n", bTest);
+    //printf("bTest = %d; found a built in\n", bTest);
     return 0;
   }
-  printf("bTest = %d; did not find a built in\n", bTest);
+  //printf("bTest = %d; did not find a built in\n", bTest);
 
   //This is a hard coded LS, here we will call a function modified from kind.c
   //to give us the file path if the command exists
@@ -394,7 +400,7 @@ int main (int argc, char **argv) {
 	  tokenArray[tokenIndex] = 0;	
 	  
 	  executeCommand(tokenArray, tokenIndex, parentIds, &sizeParentIds, 1, jobs, &jid); 
-	  printf("FOUND a semicolon, finished executing\n");
+	  
 	  tokenArraySize = 0;
 	  dup2(in, 0); //reconnect stdout
 	  dup2(out, 1);//reconnect stdout
