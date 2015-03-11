@@ -37,7 +37,7 @@ struct job {
 typedef job *joblist;//joblist is now a list of jobs, points to the start of the list
 
 /*
- * Parse function breaks the input into tokens, returns them one by one
+ * Parse function breaks the input into tokens by incrementing a counter through the input, returns them one by one
  * size refers to the size of the bufffer
  */
 char *parse(char *buffer, int *counter, int size, int *flag){
@@ -109,6 +109,7 @@ int builtin(char *command, char *target, job *jobs) {
     printf("kill - terminates jobs given an identifier of the targeted job.\n");
     printf("jobs - displays a list of all outstanding jobs, with an identifier.\n");
     printf("cd - changes the working directory of the shell.\n");  
+
     return 1;
     
   } else if (strcmp(command, "jobs") == 0) {
@@ -137,16 +138,61 @@ int builtin(char *command, char *target, job *jobs) {
     
     return 1;
 
-  } else if (strcmp(command, "cd") == 0) {
+  } else if (strcmp(command, "cd") == 0) {    
+    // chdir
+    // getcwd
+    int bSize = 512;
+    char current[bSize];
+    getcwd(current, bSize);
+
+    printf("the Current Working Directory is: %s\n", current);
+    printf("the Current Command is: %s\n", command);
+    printf("the Current Target is: %s\n", target);
+    
+    int success;
+    success = -1;
+    printf("*********strcmp value: %d\n", strcmp(target, "~") == 0);
+    if (strcmp(target, "~") == 0) { //if target is just ~
+      char *home;
+      home = getenv("HOME");
+      printf("Home directory is: %s\n", home);
+      success = chdir(home);
+      perror("--Changing Directory to ~ --");
+
+    } else if (target == '~') { //if target starts with ~ followed by something else eg: ~/Williams-Shell
+      char *home;
+      home = getenv("HOME");
+      printf("HOME??%s\n", home);
+      home = PTR_ADD(home,2);
+      success = chdir(home);
+      perror("--Change directory to home--");
+      //target = ~/Williams-Shell/directory
+      //
+      success = chdir(target);
+      perror("--Change directory to target--");
+
+    } else {
+      success = chdir(target);
+    }
+
+    if (success < 0) {
+      printf("Error: %s is not a good directory\n", target);
+      chdir(current);
+    } 
+
+    //printf("Success? %d\n", success);
+    //char *new;
+    //getcwd(new, bSize);
+    //printf("After chdir: the New Working Directory is: %s\n", new);
+
+
     return 1;
 
-  } else if(strcmp(command, "exit") == 0) {
-    
+  } else if(strcmp(command, "exit") == 0) {    
     exit(0);
-    
     return 1;
+
   }
-  
   return 0;
   
 }
@@ -188,14 +234,17 @@ void executeCommand(char *tokenArray[], int tIndex, pid_t *parentIds, int *pidSi
   int pidIndex = 0;
 
   int bTest;
-
+  printf("in execute Command, command: %s and target: %s are passed to builtin()\n", tokenArray[0], tokenArray[1]);
   if (tokenArray[0] != 0) {
     bTest = builtin(tokenArray[0], tokenArray[1], jobs);
   }
-
+  
   if(bTest){    
+    printf("bTest = %d; found a built in\n", bTest);
     return 0;
-  }  
+  }
+  printf("bTest = %d; did not find a built in\n", bTest);
+
   //This is a hard coded LS, here we will call a function modified from kind.c
   //to give us the file path if the command exists
   //if(fullPath != 0){ //not needed anymore
@@ -306,7 +355,7 @@ int main (int argc, char **argv) {
   jobs->description = "init";
   
   //for redirection
-  int in = dup(0); //save stdout file descriptor
+  int in = dup(0); //save stdin file descriptor
   int out = dup(1); //save stdout file descriptor
   
   printf("*******Welcome! You are now running the Williams Shell*******\n(c) 2015 Juan Mena and Kelly Wang.\n->");  
@@ -338,16 +387,17 @@ int main (int argc, char **argv) {
 	  tokenArray[tokenIndex] = 0;	
 	  
 	  executeCommand(tokenArray, tokenIndex, parentIds, &sizeParentIds, 1, jobs, &jid); 
+	  printf("FOUND a semicolon, finished executing\n");
 	  tokenArraySize = 0;
 	  dup2(in, 0); //reconnect stdout
 	  dup2(out, 1);//reconnect stdout
 	  tokenIndex = 0; //reset the tokenIndex to begin executing the next command, if it exists?
+
 	} else if (*token == '>') {
 	  char *target = parse(buffer, &counter, bSize, &flag); //read in the next word AFTER the >
 	  
 	  if(!isSpecial(target)){
 	    int fd;
-
 	    SYSCALL(fd = open(target, (O_WRONLY | O_CREAT | O_TRUNC), 0666), "Output descripton");
 	    
 	    dup2(fd, 1); //set target file to receive things written to stdout
@@ -382,22 +432,23 @@ int main (int argc, char **argv) {
 	  tokenIndex = 0; //reset the tokenIndex to begin executing the next command
 	  
 	} else if (*token == '|') {
+	  tokenArray[tokenIndex] = 0; //place a 0 to indicate end of a command
 	  
-	  int pipefd[2];
-	  
-	  pipe(pipefd);
-	  
-	  tokenArray[tokenIndex] = 0;	
+	  int pipefd[2]; // create a pipe
+	  pipe(pipefd);	  
+
+	  //execute cmd1
 	  dup2(pipefd[1], 1); //set files to write stdoutput to pipe
 	  executeCommand(tokenArray, tokenIndex, parentIds, &sizeParentIds, 1, jobs, &jid);	  	  
 	  close(pipefd[1]);
+
 	  dup2(pipefd[0], 0); //set read end of pipe to receive things written to stdout	  
 	  close(pipefd[0]);
+
 	  //now execute cmd2 like normal
 	  dup2(out, 1);//reconnect stdout
-	  tokenArraySize = 0; //not needed?
+	  tokenArraySize = 0; 
 	  tokenIndex = 0;      
-	  //remember to close pipes
 
 	} else if(*token == '#'){
 
