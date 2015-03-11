@@ -165,7 +165,7 @@ void addJob(job *alpha, char *desc, joblist jobs, int *jid){
   alpha->prev = jobs;
   jobs->next = alpha;
 
-
+  printf("[%d]  %d  %s user\n", alpha->jobId, alpha->processId, alpha->description);
   
 }
 
@@ -174,7 +174,7 @@ void removeJob(job *thing){
 
   (thing->prev)->next = thing->next; 
   (thing->next)->prev = thing->prev;
-
+  printf("[%d]  terminated  %s user\n", thing->jobId, thing->description);
   free(thing);
   
 }
