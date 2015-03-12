@@ -1,0 +1,17 @@
+ls -l;
+>afljeiawofjaowjefa
+< a.out
+< a.out head
+< a.out head -3
+head <a.out -3
+<a.out head -3 >b.out
+cat b.out
+head <a.out -3 >b.out
+cat b.out
+head -3 >b <a.out
+>b.out head <a.out
+>a.out
+less a.out
+sleep 10& sleep 10&
+jobs
+
