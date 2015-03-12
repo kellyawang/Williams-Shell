@@ -126,9 +126,11 @@ int builtin(char *command, char *target, job *jobs) {
     job *temp = jobs->next;
     
     int goal = atoi(target);
+    
     while(jobs != temp){
-      if(temp->processId == goal){
-	printf("kill it\n");
+      
+      if(temp->processId == goal || temp->jobId == goal){
+	//printf("kill it\n");
 	kill(temp->processId, 9);
 	remove(temp);	
 	break;
@@ -243,7 +245,7 @@ void removeJob(job *thing){
 //method to execute commands? 
 //find semicolon sep commands, handling redirection
 //***change name of tokenArray in main method
-void executeCommand(char *tokenArray[], int tIndex, pid_t *parentIds, int *pidSize, int fg, joblist jobs, int *jid) { 
+void executeCommand(char *tokenArray[], int tIndex, pid_t *parentIds, int *pidSize, int fg, joblist jobs, int *jid, int pipeFlag) { 
   int pidIndex = 0;
 
   int bTest;
@@ -285,14 +287,36 @@ void executeCommand(char *tokenArray[], int tIndex, pid_t *parentIds, int *pidSi
 	pid_t commandId;
 	job *temp = jobs->next;
 	int z = 0;
-	
-	while((*pidSize) > 1){
-	  commandId = wait(0); 
+	if(pipeFlag){
+	  while((*pidSize) > 1){
+	    commandId = wait(0); 
+	    for(z = 0; z < pidIndex; z++){
+	      if(commandId == parentIds[z]){
+		// decrease the number of parent ids, and set the parent Id, there to 0?
+		(*pidSize)--;
+		
+		parentIds[z] = 0;
+	      }
+	      
+	    }
+	    //Check through the bg jobs to see if any terminated.
+	    while(temp != jobs){
+	      if(temp->processId == commandId){
+		
+		removeJob(temp);
+		
+	      }  
+	      temp = temp->next;
+	    }
+	  }
+	  
+	}else{
+	  commandId = waitpid(-1,0,"WNOHANG"); 
 	  for(z = 0; z < pidIndex; z++){
 	    if(commandId == parentIds[z]){
 	      // decrease the number of parent ids, and set the parent Id, there to 0?
 	      (*pidSize)--;
-	   
+	      
 	      parentIds[z] = 0;
 	    }
 	    
@@ -300,27 +324,29 @@ void executeCommand(char *tokenArray[], int tIndex, pid_t *parentIds, int *pidSi
 	  //Check through the bg jobs to see if any terminated.
 	  while(temp != jobs){
 	    if(temp->processId == commandId){
-	   
+	      
 	      removeJob(temp);
 	      
 	    }  
 	    temp = temp->next;
 	  }
 	}
+	
       }
+      
   }else{
     job *bgJob = (job*)malloc(sizeof(job));
     bgJob->processId = fork();
     
     if( bgJob->processId == 0){ //child
-	int ret;
-	
-	SYSCALL(ret = execvp(tokenArray[0], tokenArray) ,"Execvp");	
-	dup2(13,0);
+      int ret;
+      
+      SYSCALL(ret = execvp(tokenArray[0], tokenArray) ,"Execvp");	
+      dup2(13,0);
     }else{
       
       addJob(bgJob, tokenArray[0], jobs, jid);
-		
+      
     }
   }
 }
@@ -403,7 +429,7 @@ int main (int argc, char **argv) {
 	if(*token == ';') {
 	  tokenArray[tokenIndex] = 0;	
 	  
-	  executeCommand(tokenArray, tokenIndex, parentIds, &sizeParentIds, 1, jobs, &jid); 
+	  executeCommand(tokenArray, tokenIndex, parentIds, &sizeParentIds, 1, jobs, &jid, 1); 
 	  
 	  tokenArraySize = 0;
 	  dup2(in, 0); //reconnect stdout
@@ -430,8 +456,14 @@ int main (int argc, char **argv) {
 	  if(!isSpecial(target)){
 	    int fd;
 
-	    SYSCALL(fd = open(target, (O_RDONLY), 0666), "Output descripton");
-	 
+	    //SYSCALL(fd = open(target, (O_RDONLY), 0666), "Output descripton");
+	    fd = open(target, (O_RDONLY), 0666);
+
+	    if(fd == -1) { 
+	      perror(("Output Description")); 
+	      //exit(errno); 
+	    }
+	    
 	    dup2(fd, 0); //set target file to receive things written to stdout
 	 	  
 	  }else {
@@ -441,7 +473,7 @@ int main (int argc, char **argv) {
 	  // fg == 0 means in the back ground, fg == 1 means in the foregronud	  
 	  tokenArray[tokenIndex] = 0;	
 	  
-	  executeCommand(tokenArray, tokenIndex, parentIds, &sizeParentIds, 0, jobs, &jid); 
+	  executeCommand(tokenArray, tokenIndex, parentIds, &sizeParentIds, 0, jobs, &jid, 1); 
 	  //perror("Failed to exit");
 	  dup2(in, 0); //reconnect stdout
 	  dup2(out, 1); //reconnect stdout
@@ -456,7 +488,7 @@ int main (int argc, char **argv) {
 
 	  //execute cmd1
 	  dup2(pipefd[1], 1); //set files to write stdoutput to pipe
-	  executeCommand(tokenArray, tokenIndex, parentIds, &sizeParentIds, 1, jobs, &jid);	  	  
+	  executeCommand(tokenArray, tokenIndex, parentIds, &sizeParentIds, 1, jobs, &jid, 0);	  	  
 	  close(pipefd[1]);
 
 	  dup2(pipefd[0], 0); //set read end of pipe to receive things written to stdout	  
@@ -471,7 +503,7 @@ int main (int argc, char **argv) {
 
 	  tokenArray[tokenIndex] = 0;	
 	  
-	  executeCommand(tokenArray, tokenIndex, parentIds, &sizeParentIds, 1, jobs, &jid); 
+	  executeCommand(tokenArray, tokenIndex, parentIds, &sizeParentIds, 1, jobs, &jid, 1); 
 	  tokenArraySize = 0;
 	  dup2(in, 0); //reconnect stdout
 	  dup2(out, 1);//reconnect stdout
