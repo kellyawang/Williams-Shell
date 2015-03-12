@@ -20,21 +20,19 @@
 //the 2 ()'s around call and docstring ensure that call makes an assignment if it is an operator
 #define SYSCALL(call, docstring) if ((call) == -1) { perror((docstring)); exit(errno); }
 
-//A helpful definition for debugging
-#define debugPrint(args) if (debug) { fprintf(stderr, args) }
 
-typedef struct job job; //struct job was the old type name, job is new type
+typedef struct job job; 
 
+//background job
 struct job {
   int jobId; //id of each process used in the joblist; this is passed to kill command
   pid_t processId; //index of the process (as seen in top)
   char *description; //the command that started this job
-  //  int fg; //foreground job or not
   job *next; //the next job in the list
-  job *prev;// The previous job on the list
+  job *prev;// The previous job in the list
 };
   
-typedef job *joblist;//joblist is now a list of jobs, points to the start of the list
+typedef job *joblist; 
 
 /*
  * Parse function breaks the input into tokens by incrementing a counter through the input, returns them one by one
@@ -74,7 +72,7 @@ char *parse(char *buffer, int *counter, int size, int *flag){
   char *first = strndup(next, 1); 
   for(i = 0; i < NUMBER_OF_TESTS; i++) {
       if(i > 1 && strspn(first,test[i]) == 1 ){ //in case there's multiple ;'s or #'s 
-	temp = 1;//strspn(next,test[i]);
+	temp = 1;
       } else{
 	temp = strcspn(next,test[i]);
       } 
@@ -112,6 +110,7 @@ int builtin(char *command, char *target, job *jobs) {
 
     return 1;
     
+    //jobs
   } else if (strcmp(command, "jobs") == 0) {
     job *temp = jobs->next;
     while(jobs != temp){
@@ -120,8 +119,8 @@ int builtin(char *command, char *target, job *jobs) {
     }
     
     return 1;
-    //remember to print out jobId, processId, and report when a job is Done, or has been Killed, or has been zombie'd
 
+    //kill
   } else if (strcmp(command, "kill") == 0) {
     job *temp = jobs->next;
     
@@ -130,7 +129,6 @@ int builtin(char *command, char *target, job *jobs) {
     while(jobs != temp){
       
       if(temp->processId == goal || temp->jobId == goal){
-	//printf("kill it\n");
 	kill(temp->processId, 9);
 	remove(temp);	
 	break;
@@ -141,16 +139,15 @@ int builtin(char *command, char *target, job *jobs) {
     
     return 1;
 
+    //cd
   } else if (strcmp(command, "cd") == 0) {    
-    // chdir
-    // getcwd
     int bSize = 512;
     char current[bSize];
     getcwd(current, bSize);
     
     int success;
     success = -1;
-    //printf("*********strcmp value: %d\n", strcmp(target, "~") == 0);
+
     if (target == 0) { //if target is just empty
       char *home;
       home = getenv("HOME");
@@ -166,16 +163,13 @@ int builtin(char *command, char *target, job *jobs) {
       //perror("--Changing Directory to ~ --");
 
     }else if (target[0] == '~' && target[1]== '/') { //if target starts with ~ followed by something else eg: ~/Williams-Shell
-      
-      
       char *home;
       home = getenv("HOME");
       
+      //increment to ignore the ~/ in front of the correct path
       target = PTR_ADD(target,2);
       success = chdir(home);
       //perror("--Change directory to home--");
-      //target = ~/Williams-Shell/directory
-      //
       success = chdir(target);
       //perror("--Change directory to target--");
 
@@ -188,14 +182,9 @@ int builtin(char *command, char *target, job *jobs) {
       chdir(current);
     } 
 
-    //printf("Success? %d\n", success);
-    //char *new;
-    //getcwd(new, bSize);
-    //printf("After chdir: the New Working Directory is: %s\n", new);
-
-
     return 1;
 
+    //exit
   } else if(strcmp(command, "exit") == 0) {    
     exit(0);
     return 1;
@@ -205,13 +194,14 @@ int builtin(char *command, char *target, job *jobs) {
   
 }
 
+//when Ctrl-C is pressed, reset the prompt and clear all buffers
 void signal_handler(){
   printf("\n->");
   fflush(stdout);
   
 }
 
-
+//add a job to the joblist (background job)
 void addJob(job *alpha, char *desc, joblist jobs, int *jid){
   if(jobs->next == jobs){
     //Job list is empty restart the count
@@ -233,90 +223,70 @@ void addJob(job *alpha, char *desc, joblist jobs, int *jid){
   
 }
 
+//remove a job from the joblist
 void removeJob(job *thing){
-
   (thing->prev)->next = thing->next; 
   (thing->next)->prev = thing->prev;
+  //report the terminated job in stdout
   printf("[%d]  terminated  %s user\n", thing->jobId, thing->description);
+  //free the allocated memory
   free(thing);
   
 }
 
-//method to execute commands? 
-//find semicolon sep commands, handling redirection
-//***change name of tokenArray in main method
+//method to execute commands 
+//find semicolon sep commands, handles redirection
+//tokenArray is array of command arguments 
+//pipeFlag is whether or not we're piping - either wait on a foreground process to finish or not
 void executeCommand(char *tokenArray[], int tIndex, pid_t *parentIds, int *pidSize, int fg, joblist jobs, int *jid, int pipeFlag) { 
   int pidIndex = 0;
-
   int bTest;
-  //printf("in execute Command, command: %s and target: %s are passed to builtin()\n", tokenArray[0], tokenArray[1]);
+
   if (tokenArray[0] != 0) {
-    //printf("tokenArray[1] = %d\n", tokenArray[1]);
     bTest = builtin(tokenArray[0], tokenArray[1], jobs);
   }
   
+  //if it was a built in return 0, get out of executing a command
   if(bTest){    
-    //printf("bTest = %d; found a built in\n", bTest);
     return 0;
   }
-  //printf("bTest = %d; did not find a built in\n", bTest);
 
-  //This is a hard coded LS, here we will call a function modified from kind.c
-  //to give us the file path if the command exists
-  //if(fullPath != 0){ //not needed anymore
-   
+
+  /*
+    this portion handles forking if we found an executable.   
+  */
   if(pidIndex >= (*pidSize)){ //if pidIndex ever exceeds capacity, resize array of ids 
     (*pidSize) = 2 * (*pidSize);
     parentIds = (pid_t*)realloc(parentIds, sizeof(pid_t)*(*pidSize));
   }    
 
+  //if a foreground command
   if(fg){
     //increment the size of the parent ids array
+    pidIndex++;
+    (*pidSize)++;
+    parentIds[pidIndex-1] = fork(); //these are actually process ids of the children
     
-      pidIndex++;
-      (*pidSize)++;
-      parentIds[pidIndex-1] = fork(); //these are actually child ids
-      //printf("post fork\n");
+    if( parentIds[pidIndex-1] == 0){ //child
       
-      if( parentIds[pidIndex-1] == 0){ //child
-	
-	int ret;
-	SYSCALL(ret = execvp(tokenArray[0], tokenArray) ,"Execvp");	
-      }else { //parent
-	
-	pid_t commandId;
-	job *temp = jobs->next;
-	int z = 0;
-	if(pipeFlag){
-	  while((*pidSize) > 1){
-	    commandId = wait(0); 
-	    for(z = 0; z < pidIndex; z++){
-	      if(commandId == parentIds[z]){
-		// decrease the number of parent ids, and set the parent Id, there to 0?
-		(*pidSize)--;
-		
-		parentIds[z] = 0;
-	      }
-	      
-	    }
-	    //Check through the bg jobs to see if any terminated.
-	    while(temp != jobs){
-	      if(temp->processId == commandId){
-		
-		removeJob(temp);
-		
-	      }  
-	      temp = temp->next;
-	    }
-	  }
-	  
-	}else{
-	  commandId = waitpid(-1,0,"WNOHANG"); 
-	  (*pidSize)--;
+      int ret;
+      SYSCALL(ret = execvp(tokenArray[0], tokenArray) ,"Execvp");	
+    }else { //parent
+      
+      pid_t commandId;
+      job *temp = jobs->next;
+      int z = 0;
+     
+      //NOT piping (pipeFlag is 1 if not piping)
+      if(pipeFlag){
+	while((*pidSize) > 1){
+	  //wait for the pipe to finish because we're in parent
+	  commandId = wait(0); 
+
 	  for(z = 0; z < pidIndex; z++){
 	    if(commandId == parentIds[z]){
-	      // decrease the number of parent ids, and set the parent Id, there to 0?
-
+	      // decrease the number of parent ids, and set the parent Id, there to 0
+	      (*pidSize)--;
 	      
 	      parentIds[z] = 0;
 	    }
@@ -333,8 +303,31 @@ void executeCommand(char *tokenArray[], int tIndex, pid_t *parentIds, int *pidSi
 	  }
 	}
 	
+	//if piping
+      }else{
+	commandId = waitpid(-1,0,"WNOHANG"); 
+	(*pidSize)--;
+	for(z = 0; z < pidIndex; z++){
+	  if(commandId == parentIds[z]){
+	    // decrease the number of parent ids, and set the parent Id, there to 0
+	    parentIds[z] = 0;
+	  }
+	  
+	}
+	//Check through the bg jobs to see if any terminated.
+	while(temp != jobs){
+	  if(temp->processId == commandId){
+	    
+	    removeJob(temp);
+	    
+	  }  
+	  temp = temp->next;
+	}
       }
       
+    }
+    
+    //if a background job
   }else{
     job *bgJob = (job*)malloc(sizeof(job));
     bgJob->processId = fork();
@@ -421,8 +414,6 @@ int main (int argc, char **argv) {
       //; separated comands: if the current token is an ; then this is the end of the command
       //Execute the command, and set tokenIndex to zero
       //Or else just increment tokenIndex
-  
-
       //if t == "#", if == ";"...etc do different things...
       if(isSpecial(token)) {
 
@@ -435,7 +426,7 @@ int main (int argc, char **argv) {
 	  tokenArraySize = 0;
 	  dup2(in, 0); //reconnect stdout
 	  dup2(out, 1);//reconnect stdout
-	  tokenIndex = 0; //reset the tokenIndex to begin executing the next command, if it exists?
+	  tokenIndex = 0; //reset the tokenIndex to begin executing the next command, if it exists
 
 	} else if (*token == '>') {
 	  char *target = parse(buffer, &counter, bSize, &flag); //read in the next word AFTER the >
@@ -457,12 +448,11 @@ int main (int argc, char **argv) {
 	  if(!isSpecial(target)){
 	    int fd;
 
-	    //SYSCALL(fd = open(target, (O_RDONLY), 0666), "Output descripton");
 	    fd = open(target, (O_RDONLY), 0666);
 
 	    if(fd == -1) { 
 	      perror(("Output Description")); 
-	      //exit(errno); 
+	    
 	    }
 	    
 	    dup2(fd, 0); //set target file to receive things written to stdout
@@ -508,7 +498,7 @@ int main (int argc, char **argv) {
 	  tokenArraySize = 0;
 	  dup2(in, 0); //reconnect stdout
 	  dup2(out, 1);//reconnect stdout
-	  tokenIndex = 0; //reset the tokenIndex to begin executing the next command, if it exists?
+	  tokenIndex = 0; //reset the tokenIndex to begin executing the next command, if it exists
 	  flag = 1; // if # then execute and ignore everything after the #
 	}
 	
