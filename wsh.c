@@ -312,10 +312,11 @@ void executeCommand(char *tokenArray[], int tIndex, pid_t *parentIds, int *pidSi
 	  
 	}else{
 	  commandId = waitpid(-1,0,"WNOHANG"); 
+	  (*pidSize)--;
 	  for(z = 0; z < pidIndex; z++){
 	    if(commandId == parentIds[z]){
 	      // decrease the number of parent ids, and set the parent Id, there to 0?
-	      (*pidSize)--;
+
 	      
 	      parentIds[z] = 0;
 	    }
