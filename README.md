@@ -1,5 +1,5 @@
 # Williams-Shell
-Williams Shell project CS432 Spring 2015
+Williams Shell project CS432 - Operating Systems
 (c) March 11, 2015
 Kelly Wang
 Juan Mena
